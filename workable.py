@@ -6,6 +6,7 @@ from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.common.by import By
 import sqlite3
 import time
+import datetime
 import json
 import random
 import sys
@@ -26,6 +27,7 @@ def init_db():
             workplace TEXT,
             employment_type TEXT,
             location TEXT,
+            posted INTEGER DEFAULT 0,
             company_logo TEXT,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             )
@@ -37,8 +39,8 @@ def init_db():
 def insert_job(cursor, job_info):
     """Insert job info into the database"""
     cursor.execute('''
-        INSERT INTO jobs (company, title, description, apply_url, workplace, employment_type, location, company_logo)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO jobs (company, title, description, apply_url, workplace, employment_type, location, posted, company_logo)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         job_info['company'],
         job_info['title'],
@@ -47,8 +49,28 @@ def insert_job(cursor, job_info):
         job_info['workplace'],
         job_info['employment_type'],
         job_info['location'],
+        job_info['post_time'],
         job_info['company_logo']
     ))
+
+
+def job_filter(job_info):
+    """Filter out invalid jobs"""
+    if job_info['posted'] != "Not found" or job_info['title'] != "Not found":
+        if job_info['posted'].lower() == "posted today":
+            return True
+        try:
+            parts = job_info['posted'].split()  
+            if len(parts) >= 3 and parts[0].lower() == "posted" and parts[2] in ["day", "days"]:
+                if int(parts[1]) < 15:
+                    return True
+            
+            print("Job is older than 15 days or has an invalid date format... Skipping")
+        except(ValueError, IndexError) as e:
+            print(f"Error parsing post time: {e}. Data: {job_info.get('posted', 'N/A')}")
+        return False
+    return False
+
 
 def get_description(driver):
     """
@@ -274,7 +296,7 @@ def get_description(driver):
     except Exception as e:
         print(f"Error converting description data to JSON: {str(e)}")
         return None
-        
+
 
 def scrape_workable_jobs(last_count=None):
     try:
@@ -295,6 +317,8 @@ def scrape_workable_jobs(last_count=None):
 
         except Exception as e:
             print("cookie page not found")
+            #continue with rest of script
+            pass
 
         job_count_text = driver.find_element(By.XPATH, "//span[@data-ui='jobs-list-title']//strong[contains(@class, 'styles__strong')]").text
         job_count = int(job_count_text.split()[0])
@@ -319,11 +343,15 @@ def scrape_workable_jobs(last_count=None):
 
         while processed_count < jobs_to_process:
             listings = driver.find_elements(By.XPATH, "//li[@class='jobsList__list-item--3HLIF']")
-
-            new_listings = listings[processed_count:]
-            print(f"Processing {len(new_listings)} new listings")
-            print(f"Total processed: {processed_count}")
-            print("=====================================\n")
+            
+            if listings:
+                new_listings = listings[processed_count:] if processed_count < len(listings) else []
+                print(f"Processing {len(new_listings)} new listings")
+                print(f"Total processed: {processed_count}")
+                print("=====================================\n")
+            else:
+                print("No listings found")
+                new_listings = []
 
             for listing in new_listings:
                 job_info = {}
@@ -344,6 +372,7 @@ def scrape_workable_jobs(last_count=None):
                         'workplace': ("//span[@data-ui='overview-workplace']//strong", "text"),
                         'employment_type': ("//span[@data-ui='overview-employment-type']", "text"),
                         'location': ("//span[@data-ui='overview-location']", "text"),
+                        'posted': ("//span[@data-ui='overview-date-posted']", "text"),
                         'company_logo': ("//div [@class='companyLogo__container--26Pxz' ] //img[contains(@class, 'companyLogo__logo')]", "src")
                     }
 
@@ -354,11 +383,23 @@ def scrape_workable_jobs(last_count=None):
                                 job_info[field] = element.get_attribute("href")
                             elif attr_type == "src":
                                 job_info[field] = element.get_attribute("src")
+                            elif field == "posted":
+                                job_info[field] = element.text.strip()
+                                if "today" in job_info[field].lower():
+                                    job_info['post_time'] = 0
+                                else:
+                                    try:
+                                        parts = job_info[field].split()
+                                        if len(parts) >= 3 and parts[0].lower() == "posted" and parts[2] in ["day", "days", "month", "months", "year", "years"]:
+                                            job_info['post_time'] = int(parts[1])
+                                    except ValueError:
+                                        job_info['post_time'] = 0
                             else:
                                 job_info[field] = element.text.strip()
+                                
                         except NoSuchElementException:
                             job_info[field] = "Not found"
-                    
+
                     # Get description
                     try:
                         job_info['description'] = get_description(driver)
@@ -366,8 +407,8 @@ def scrape_workable_jobs(last_count=None):
                         print(f"Error fetching description: {e}")
                         job_info['description'] = None
                     
-                    # validate data before inserting into database
-                    if job_info['title'] != "Not found" and job_info['description']:
+                    # validate and filter job data before inserting into database
+                    if job_filter(job_info):
                         # Insert job into database
                         insert_job(cursor, job_info)
                         conn.commit()
@@ -377,9 +418,12 @@ def scrape_workable_jobs(last_count=None):
                         print(f"Job title: {job_info['title']}")
                         print(f"Workplace: {job_info['workplace']} - {job_info['employment_type']}")
                         print(f"Location: {job_info['location']}")
+                        print(f"Posted: {job_info['posted']}")
+                        print(f"posted: {job_info['post_time']}")
                         print("=====================================")
                     else:
-                        print(f"Invalid data. Skipping job: {job_info['title']}")
+                        print(f"Invalid Job data. Skipping job: {job_info['title']}")
+                        print("=====================================")
 
                     # Add a random delay before processing the next listing
                     time.sleep(random.uniform(1.5, 3.0))
