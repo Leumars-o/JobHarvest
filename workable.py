@@ -27,7 +27,7 @@ def init_db():
             workplace TEXT,
             employment_type TEXT,
             location TEXT,
-            posted INTEGER DEFAULT 0,
+            posted DATETIME,
             company_logo TEXT,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             )
@@ -49,26 +49,32 @@ def insert_job(cursor, job_info):
         job_info['workplace'],
         job_info['employment_type'],
         job_info['location'],
-        job_info['post_time'],
+        job_info['post_date'],
         job_info['company_logo']
     ))
 
 
 def job_filter(job_info):
-    """Filter out invalid jobs"""
+    """Filter out invalid jobs based on the job information
+
+    Args:
+        job_info (dict): Dictionary containing job information
+
+    Returns:
+        Bool: returns True if the job is valid and should be processed, False otherwise
+    """
+
     if job_info['posted'] != "Not found" or job_info['title'] != "Not found":
         if job_info['posted'].lower() == "posted today":
             return True
-        try:
-            parts = job_info['posted'].split()  
-            if len(parts) >= 3 and parts[0].lower() == "posted" and parts[2] in ["day", "days"]:
-                if int(parts[1]) < 15:
-                    return True
-            
-            print("Job is older than 15 days or has an invalid date format... Skipping")
-        except(ValueError, IndexError) as e:
-            print(f"Error parsing post time: {e}. Data: {job_info.get('posted', 'N/A')}")
-        return False
+        
+        # Check if the job is older than 15 days
+        if job_info['post_data'][1] in ["day", "days"]:
+            if int(job_info['post_data'][0]) < 15:
+                return True
+        else:
+            return False
+        print("Job is older than 15 days or has an invalid date format... Skipping")
     return False
 
 
@@ -77,8 +83,8 @@ def get_description(driver):
     Scrapes the "Description" section of the job listing and returns as JSON
 
     Args:
+        driver (WebDriver): The Selenium WebDriver instance
 
-    
     Returns:
         JSON: The description section of the job listing or None if not found
     """
@@ -298,6 +304,64 @@ def get_description(driver):
         return None
 
 
+def get_post_date(job_info, element):
+    """
+    Parse the posting date and save the actual date of posting
+    
+    Args:
+    job_info (dict): Dictionary to store job information
+    element (element): HTML/XML element containing the posting date text
+    
+    Returns:
+    None
+    """
+
+    # Get the text content of the element
+    job_info["posted"] = element.text.strip()
+
+    # Get today's date
+    today = datetime.datetime.today()
+    today_str = today.strftime('%d/%m/%Y')
+
+    # Check if the posting date is today
+    if "today" in job_info["posted"].lower():
+        job_info["post_date"] = today_str
+        job_info["post_data"] = ["today"]
+        return
+    
+    try:
+        # Split the text into parts
+        parts = job_info["posted"].split()
+        
+        # Ensure the format is correct: "Posted X day/days/month/months/year/years ago"
+        if (len(parts) >= 3 and 
+            parts[0].lower() == "posted" and 
+            parts[2] in ["day", "days", "month", "months", "year", "years"]):
+            
+            job_info["post_data"] = [parts[1], parts[2]]
+
+            # Get the number of days, months or years
+            time_value = int(parts[1])
+            time_units = parts[2]
+            
+            # Get the posting time based on the time delta
+            post_date = None
+            if time_units in ["day", "days"]:
+                post_date = today - datetime.timedelta(days=time_value)
+            elif time_units in ["month", "months"]:
+                post_date = today - datetime.timedelta(days=time_value*30)
+            elif time_units in ["year", "years"]:
+                post_date = today - datetime.timedelta(days=time_value*365)
+            
+            # Save the posting date in the correct format
+            job_info["post_date"] = post_date.strftime('%d/%m/%Y')
+        else:
+            # fallback to today's date if the format is incorrect
+            job_info["post_date"] = today.strftime('%d/%m/%Y')
+    except (ValueError, IndexError):
+        job_info["post_date"] = today.strftime('%d/%m/%Y')
+
+
 def scrape_workable_jobs(last_count=None):
     try:
         conn, cursor = init_db()
@@ -384,16 +448,7 @@ def scrape_workable_jobs(last_count=None):
                             elif attr_type == "src":
                                 job_info[field] = element.get_attribute("src")
                             elif field == "posted":
-                                job_info[field] = element.text.strip()
-                                if "today" in job_info[field].lower():
-                                    job_info['post_time'] = 0
-                                else:
-                                    try:
-                                        parts = job_info[field].split()
-                                        if len(parts) >= 3 and parts[0].lower() == "posted" and parts[2] in ["day", "days", "month", "months", "year", "years"]:
-                                            job_info['post_time'] = int(parts[1])
-                                    except ValueError:
-                                        job_info['post_time'] = 0
+                                get_post_date(job_info, element)
                             else:
                                 job_info[field] = element.text.strip()
                                 
@@ -419,7 +474,7 @@ def scrape_workable_jobs(last_count=None):
                         print(f"Workplace: {job_info['workplace']} - {job_info['employment_type']}")
                         print(f"Location: {job_info['location']}")
                         print(f"Posted: {job_info['posted']}")
-                        print(f"posted: {job_info['post_time']}")
+                        print(f"posted: {job_info['post_date']}")
                         print("=====================================")
                     else:
                         print(f"Invalid Job data. Skipping job: {job_info['title']}")
