@@ -1,1 +1,2 @@
-# Job board webscraper program
+# Job-scraping
+The job scraping code
