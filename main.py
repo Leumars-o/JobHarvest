@@ -1,6 +1,5 @@
-import sys
-from core.factory import ScrapperFactory
 from core.orchestrator import JobScrapperOrchestrator
+from typing import Dict, Any
 
 
 def scrape_singl_platform(platform: str, search_params: Dict[str, Any],
