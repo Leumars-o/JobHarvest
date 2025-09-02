@@ -69,8 +69,9 @@ def job_filter(job_info):
             return True
         
         # Check if the job is older than 15 days
-        if job_info['post_data'][1] in ["day", "days"]:
-            if int(job_info['post_data'][0]) < 15:
+        post_data = job_info.get('post_data')
+        if post_data and isinstance(post_data, (list, tuple)) and len(post_data) > 1 and post_data[1] in ["day", "days"]:
+            if int(post_data[0]) < 15:
                 return True
         else:
             return False
