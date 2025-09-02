@@ -36,19 +36,19 @@ class ScrapperFactory:
             raise ValueError(f"Unsupported platform: {platform}. Available platforms: {available_platforms}")
         
 
-        @classmethod
-        def get_available_platforms(cls) -> list:
-            """Get list of available platforms"""
-            platforms = list(cls._scrapers.keys())
+    @classmethod
+    def get_available_platforms(cls) -> list:
+        """Get list of available platforms"""
+        platforms = list(cls._scrapers.keys())
 
-            # Also check platforms directory
-            platforms_dir = 'platforms'
-            if os.path.exists(platforms_dir):
-                for file in os.listdir(platforms_dir):
-                    if file.endswith('_scraper.py') and file != '__init__.py':
-                        platform = file.replace('_scraper.py', '')
-                        if platform not in platforms:
-                            platforms.append(platform)
+        # Also check platforms directory
+        platforms_dir = 'platforms'
+        if os.path.exists(platforms_dir):
+            for file in os.listdir(platforms_dir):
+                if file.endswith('_scraper.py') and file != '__init__.py':
+                    platform = file.replace('_scraper.py', '')
+                    if platform not in platforms:
+                        platforms.append(platform)
 
-            return sorted(platforms)
+        return sorted(platforms)
         
