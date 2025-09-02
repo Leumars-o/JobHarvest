@@ -53,7 +53,7 @@ class DatabaseManager:
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 job_info['platform'],
-                job_info['job_title'],
+                job_info['title'],
                 job_info['company'],
                 job_info['location'],
                 job_info['job_type'],
