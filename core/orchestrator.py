@@ -3,7 +3,7 @@ import random
 from typing import Dict, Any
 from .database import DatabaseManager
 from .filters import JobFilter
-from .base_scrapper import BasePlatformScrapper
+from .base_scraper import BasePlatformScraper
 
 
 class JobScrapperOrchestrator:
