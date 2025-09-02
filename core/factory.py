@@ -20,7 +20,7 @@ class ScrapperFactory:
 
         # Try to load from registered scrapers first
         if platform_lower in cls._scrapers:
-            return cls._scrapers[platform_lower]().
+            return cls._scrapers[platform_lower]()
         
         # Try to dynamically import from platform directory
         try:
