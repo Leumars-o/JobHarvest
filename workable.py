@@ -64,7 +64,7 @@ def job_filter(job_info):
         Bool: returns True if the job is valid and should be processed, False otherwise
     """
 
-    if job_info['posted'] != "Not found" or job_info['title'] != "Not found":
+    if job_info['posted'] != "Not found" and job_info['title'] != "Not found":
         if job_info['posted'].lower() == "posted today":
             return True
         
