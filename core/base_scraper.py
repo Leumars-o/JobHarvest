@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any
 
-class BasePlatformScrapper(ABC):
-    """Abstract base class for platform-specific scrappers"""
+class BasePlatformScraper(ABC):
+    """Abstract base class for platform-specific scrapers"""
 
     def __init__(self, platform_name: str):
-        selfplatform_name = platform_name
+        self.platform_name = platform_name
         self.driver = None
     
     @abstractmethod
